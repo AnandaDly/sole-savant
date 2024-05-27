@@ -1,65 +1,64 @@
-import pandas as pd
-import streamlit as st
-import pickle
-from tensorflow.keras.preprocessing.text import Tokenizer
-
-
-# st.write("""
-# # Sole Savant
-# Sentiment Analysis and classification for Best Shoe Recommendation
-# """)
-
-# data = pd.read_csv('Shoes_Data.csv')
-# data.head()
-
-# st.write(data.head())
-
 import streamlit as st
 import pandas as pd
 import pickle
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import re
 
-# Load tokenizer
-# with open("model/tokenizer.pkl", "rb") as f:
-#     tokenizer = pickle.load(f)
+# Load model
+with open('model/sentiment_analysis_model.pkl', 'rb') as file:
+    model = pickle.load(file)
 
-# Load sentiment analysis model
-with open("model/sentiment_analysis_model.pkl", "rb") as f:
-    sentiment_analysis_model = pickle.load(f)
+# Function to clean text data
+def clean_text(text):
+    # Remove emojis
+    text = text.encode('ascii', 'ignore').decode('ascii')
+    # Lowercase the text
+    text = text.lower()
+    # Remove punctuation and numbers
+    text = re.sub(r'[^a-z\s]', '', text)
+    # Tokenize the text
+    words = word_tokenize(text)
+    # Remove stopwords
+    words = [word for word in words if word not in stopwords.words('english')]
+    return ' '.join(words)
 
-# Memuat data sepatu
-shoe_data = pd.read_csv('data/Shoes_Data.csv')
+# Load data
+df = pd.read_csv('data/Shoes_Data_Final.csv')
 
-def main():
-    st.title("Sentiment Analysis and Classification for Best Shoe Recommendation")
-    st.write("This website provides sentiment analysis for shoe products, allowing users to filter shoes based on brand, price, and reviews.")
-    
-    # Sidebar untuk filter
-    st.sidebar.header("Filter Options")
-    brand_filter = st.sidebar.multiselect("Select Brand", options=shoe_data['title'].unique())
-    # Menghapus simbol mata uang '₹' dari nilai harga dan mengonversi ke floating-point
-    shoe_data['price'] = shoe_data['price'].str.replace('₹', '').astype(float)
-    # Menggunakan nilai harga yang sudah dibersihkan dan dikonversi dalam fungsi slider
-    price_filter = st.sidebar.slider("Select Price Range", shoe_data['price'].min(), shoe_data['price'].max())
-    user_review = st.sidebar.text_area("Enter your review to get sentiment:")
+# Clean reviews
+df['cleaned_reviews'] = df['reviews'].apply(clean_text)
 
-    if st.sidebar.button("Analyze Sentiment"):
-        if user_review:
-            # Transformasi ulasan pengguna menggunakan TF-IDF vectorizer dan prediksi sentimen
-            review_vectorized = tfidf_vectorizer.transform([user_review])
-            sentiment_prediction = sentiment_model.predict(review_vectorized)
-            sentiment_label = 'Positive' if sentiment_prediction[0] == 1 else 'Negative'
-            st.sidebar.write(f"Sentiment: {sentiment_label}")
-        else:
-            st.sidebar.write("Please enter a review for sentiment analysis.")
-    
-    # Menyaring data berdasarkan pilihan pengguna
-    filtered_data = shoe_data
-    if brand_filter:
-        filtered_data = filtered_data[filtered_data['title'].isin(brand_filter)]
-    filtered_data = filtered_data[filtered_data['price'] <= price_filter]
+# Sidebar for user input
+st.sidebar.header('Filter')
+selected_brand = st.sidebar.selectbox('Select Brand', df['merk'].unique())
+price_range = st.sidebar.slider('Select Price Range', int(df['price_idr'].min()), int(df['price_idr'].max()), (int(df['price_idr'].min()), int(df['price_idr'].max())))
+shoe_type = st.sidebar.selectbox('Select Shoe Type', df['Shoe Type'].unique())
 
-    st.subheader("Shoe Recommendations")
-    st.write(filtered_data)
+# Filter data based on user input
+filtered_data = df[(df['merk'] == selected_brand) & (df['price_idr'] >= price_range[0]) & (df['price_idr'] <= price_range[1]) & (df['Shoe Type'] == shoe_type)]
+
+st.title('Shoe Sentiment Analysis')
+
+if not filtered_data.empty:
+    st.write(f'Found {len(filtered_data)} shoes matching your criteria.')
+    for index, row in filtered_data.iterrows():
+        st.subheader(row['title'])
+        st.write(f"**Brand:** {row['merk']}")
+        st.write(f"**Type:** {row['Shoe Type']}")
+        st.write(f"**Price:** {row['price_idr']}")
+        st.write(f"**Total Reviews:** {row['total_reviews']}")
+        st.write(f"**Rating:** {row['rating']}")
+        st.write(f"**Description:** {row['product_description']}")
+        st.write("**Reviews:**")
+        st.write(row['reviews'])
+
+        # Predict sentiment
+        sentiment = model.predict([['cleaned_reviews']])
+        sentiment_percentage = sentiment.mean() * 100
+        st.write(f"**Sentiment Analysis:** {sentiment_percentage:.2f}% positive")
+else:
+    st.write('No shoes found matching your criteria.')
 
 if __name__ == '__main__':
-    main()
+    st.run()
