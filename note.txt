@@ -1,0 +1,19 @@
+    
+    # user_review = st.sidebar.text_area("Enter your review to get sentiment:")
+
+    # if st.sidebar.button("Analyze Sentiment"):
+    #     if user_review:
+    #         # Transformasi ulasan pengguna menggunakan tokenizer dan prediksi sentimen
+    #         review_sequence = tokenizer.texts_to_sequences([user_review])
+    #         review_padded = pad_sequences(review_sequence, maxlen=100)
+    #         sentiment_prediction = sentiment_analysis_model.predict(review_padded)
+    #         sentiment_label = 'Positive' if sentiment_prediction[0] >= 0.5 else 'Negative'
+    #         st.sidebar.write(f"Sentiment: {sentiment_label}")
+    #     else:
+    #         st.sidebar.write("Please enter a review for sentiment analysis.")
+
+
+
+    #title, shoe type, merk, price-idr, rating, 
+
+    #detail : product desc, review 1-n, review-rating 1-n, percentage dalam bentuk chart
