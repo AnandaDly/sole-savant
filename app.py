@@ -13,12 +13,10 @@ from tensorflow.keras.layers import SimpleRNN
 # Memuat data sepatu
 shoe_data = pd.read_csv('data/Shoes_Data_Final.csv')
 
-# def app():
+def read_data():
+    st.title("Read Shoe Data")
+    st.write("This section allows you to explore shoe data.")
 
-def main():
-    st.title("Sentiment Analysis and Classification for Best Shoe Recommendation")
-    st.write("This website provides sentiment analysis for shoe products, allowing users to filter shoes based on brand, price, and reviews.")
-    
     # Sidebar untuk filter
     st.sidebar.header("Filter Options")
     
@@ -64,7 +62,7 @@ def main():
         
         # Tombol untuk menampilkan detail
         if st.button("View Details"):
-            st.session_state['viewing_details'] = False
+            st.session_state['viewing_details'] = True
         if 'show_reviews' not in st.session_state:
             st.session_state['show_reviews'] = False
         
@@ -114,9 +112,29 @@ def main():
             
             # Membuat bar chart untuk perbandingan harga
             fig2 = px.bar(x=['Good Ratings', 'Bad Ratings'], y=[avg_price_good_ratings, avg_price_bad_ratings],
-                          labels={'x': 'Rating Category', 'y': 'Average Price'},
-                          title='Average Price Comparison Between Good and Bad Ratings')
+                            labels={'x': 'Rating Category', 'y': 'Average Price'},
+                            title='Average Price Comparison Between Good and Bad Ratings')
             st.plotly_chart(fig2)
+
+def classification():
+    st.title("Shoe Classification")
+    st.write("This section allows you to classify shoes.")
+
+def sentiment_analysis():
+    st.title("Sentiment Analysis")
+    st.write("This section provides sentiment analysis for shoe reviews.")
+
+#def app():
+def main():
+    st.sidebar.title("Navigation")
+    menu = st.sidebar.radio("Select a Menu", ('Read Data', 'Classification', 'Sentiment Analysis'))
+
+    if menu == 'Read Data':
+        read_data()
+    elif menu == 'Classification':
+        classification()
+    elif menu == 'Sentiment Analysis':
+        sentiment_analysis()
 
 if __name__ == '__main__':
     main()
