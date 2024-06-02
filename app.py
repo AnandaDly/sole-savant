@@ -1,22 +1,114 @@
 import pandas as pd
 import streamlit as st
-import pickle
 import tensorflow as tf
-import matplotlib.pyplot as plt
-import re
-import plotly.express as px
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.initializers import Orthogonal
-from tensorflow.keras.layers import SimpleRNN
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
+from sklearn.preprocessing import LabelEncoder
+import plotly.express as px
+import re
+import os
+import joblib
+import locale
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')  # Set locale for thousands separator
 
 # Memuat data sepatu
 shoe_data = pd.read_csv('data/Shoes_Data_Final.csv')
 
+# Memuat model yang telah dilatih
+MODEL_PATH = 'model/sentiment_model1.h5'
+
+def load_trained_model():
+    if os.path.exists(MODEL_PATH):
+        return load_model(MODEL_PATH)
+    else:
+        return None
+
+# Fungsi untuk analisis sentimen
+def sentiment_analysis():
+    st.title("Sentiment Analysis")
+    st.write("This section provides sentiment analysis for shoe reviews.")
+
+    # Menggabungkan semua review menjadi satu kolom
+    shoe_data['combined_reviews'] = shoe_data[['review_1', 'review_2', 'review_3', 'review_4', 'review_5',
+                                                'review_6', 'review_7', 'review_8', 'review_9', 'review_10']].fillna('').agg(' '.join, axis=1)
+
+    # Encode sentiment labels
+    label_encoder = LabelEncoder()
+    shoe_data['encoded_sentiment'] = label_encoder.fit_transform(shoe_data['sentiment'])
+
+    # Tokenization and Padding
+    tokenizer = Tokenizer(num_words=5000, oov_token='<OOV>')
+    tokenizer.fit_on_texts(shoe_data['combined_reviews'])
+    
+    # Memuat model yang telah dilatih
+    model = load_trained_model()
+
+    if model is None:
+        st.error("Trained model not found. Please ensure 'sentiment_model.h5' is available.")
+        return
+
+    # Dropdown untuk memilih merk
+    merk_options = sorted(shoe_data['merk'].unique())
+    selected_merk = st.selectbox("Select a Merk", options=merk_options)
+    
+    # Dropdown untuk memilih title berdasarkan merk yang dipilih
+    title_options = shoe_data[shoe_data['merk'] == selected_merk]['title'].unique()
+    selected_title = st.selectbox("Select a Title", options=title_options)
+    
+    st.header("Input Review for Sentiment Analysis")
+    review_input = st.text_area("Enter your review here:")
+
+    if st.button("Analyze Sentiment"):
+        if review_input:
+            # Preprocess input review
+            sequence = tokenizer.texts_to_sequences([review_input])
+            padded_sequence = pad_sequences(sequence, padding='post', maxlen=200)
+            
+            # Predict sentiment
+            sentiment_prediction = model.predict(padded_sequence)
+            sentiment_class = sentiment_prediction.argmax(axis=-1)
+            sentiment_label = label_encoder.inverse_transform(sentiment_class)
+
+            # Mapping encoded labels to textual labels
+            sentiment_mapping = {0: 'negative', 1: 'neutral', 2: 'positive'}
+            sentiment_text = sentiment_mapping[sentiment_class[0]]
+
+            st.write(f"The sentiment of the review is: {sentiment_text}")
+        else:
+            st.error("Please enter a review for analysis.")
+
 def read_data():
     st.title("Read Shoe Data")
     st.write("This section allows you to explore shoe data.")
+    # Top Brands by Total Reviews
+    st.subheader("Top Brands by Total Reviews")
+    
+    # Extracting numeric part from total_reviews column with error handling
+    def extract_reviews(review_text):
+        try:
+            return int(re.search(r'(\d+)', str(review_text)).group())
+        except (AttributeError, ValueError):
+            return 0
+    
+    shoe_data['total_reviews'] = shoe_data['total_reviews'].apply(extract_reviews)
+    
+    # Group by merk and sum the total_reviews
+    top_merks = shoe_data.groupby('merk')['total_reviews'].sum().reset_index()
+    top_merks = top_merks.sort_values(by='total_reviews', ascending=False).head(10)
 
+    # Create the bar chart
+    fig3 = px.bar(
+        top_merks,
+        x='merk',
+        y='total_reviews',
+        title='Top Brands by Total Reviews',
+        labels={'merk': 'Brand (Merk)', 'total_reviews': 'Total Reviews'}
+    )
+    fig3.update_layout(yaxis_title='Total Reviews')
+    st.plotly_chart(fig3)
+    
     # Sidebar untuk filter
     st.sidebar.header("Filter Options")
     
@@ -31,7 +123,12 @@ def read_data():
     shoe_data['price_idr'] = shoe_data['price_idr'].astype(float)
     
     # Menggunakan nilai harga yang sudah dibersihkan dan dikonversi dalam fungsi slider
-    price_filter = st.sidebar.slider("Select Price Range", float(shoe_data['price_idr'].min()), float(shoe_data['price_idr'].max()))
+    price_filter = st.sidebar.slider(
+    "Select Price Range",
+    float(shoe_data['price_idr'].min()),
+    float(shoe_data['price_idr'].max()),
+    format="%.0f"
+    )
     
     # Menyaring data berdasarkan pilihan pengguna
     filtered_data = shoe_data
@@ -116,16 +213,30 @@ def read_data():
                             title='Average Price Comparison Between Good and Bad Ratings')
             st.plotly_chart(fig2)
 
+rating_predictor_model = joblib.load('model/rating_predictor_model.pkl')
 def classification():
     st.title("Shoe Classification")
     st.write("This section allows you to classify shoes.")
+    
+    # Input fields
+    price = st.number_input("Masukkan Harga Sepatu (dalam IDR):", min_value=0)
+    product_description = st.text_area("Masukkan Deskripsi Produk:")
+    review_length = st.number_input("Masukkan Panjang Ulasan:", min_value=0)
 
-def sentiment_analysis():
-    st.title("Sentiment Analysis")
-    st.write("This section provides sentiment analysis for shoe reviews.")
+    if st.button("Predict Rating"):
+        # Prepare input data
+        input_data = pd.DataFrame({
+            'price': [price],
+            'product_description': [product_description],
+            'review_length': [review_length]
+        })
 
-#def app():
-def main():
+        # Predict rating
+        predicted_rating = rating_predictor_model.predict(input_data)[0]
+        st.write(f"Rating yang diprediksi untuk sepatu tersebut adalah: {predicted_rating:.1f}")
+    
+def app():
+# def main():
     st.sidebar.title("Navigation")
     menu = st.sidebar.radio("Select a Menu", ('Read Data', 'Classification', 'Sentiment Analysis'))
 
