@@ -8,76 +8,46 @@ from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 from sklearn.preprocessing import LabelEncoder
 import plotly.express as px
 import re
-import os
 import joblib
 import locale
+from transformers import BertTokenizer, BertForSequenceClassification
+import torch
+import os
+
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')  # Set locale for thousands separator
 
 # Memuat data sepatu
 shoe_data = pd.read_csv('data/Shoes_Data_Final.csv')
 
-# Memuat model yang telah dilatih
-MODEL_PATH = 'model/sentiment_model1.h5'
-
-def load_trained_model():
-    if os.path.exists(MODEL_PATH):
-        return load_model(MODEL_PATH)
-    else:
-        return None
-
+# Path ke model di direktori lokal
+model_path = './model/hugging'
+# Load model dan tokenizer
+try:
+    tokenizer = BertTokenizer.from_pretrained(model_path)
+    model = BertForSequenceClassification.from_pretrained(model_path)
+except EnvironmentError as e:
+    st.error(f"Error loading the model: {e}")
+    st.stop()
+    
 # Fungsi untuk analisis sentimen
 def sentiment_analysis():
     st.title("Sentiment Analysis")
     st.write("This section provides sentiment analysis for shoe reviews.")
 
-    # Menggabungkan semua review menjadi satu kolom
-    shoe_data['combined_reviews'] = shoe_data[['review_1', 'review_2', 'review_3', 'review_4', 'review_5',
-                                                'review_6', 'review_7', 'review_8', 'review_9', 'review_10']].fillna('').agg(' '.join, axis=1)
+    # Function to classify sentiment
+    def classify_sentiment(text):
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
+        outputs = model(**inputs)
+        probs = torch.nn.functional.softmax(outputs.logits, dim=1)
+        sentiment = torch.argmax(probs, dim=1).item()
+        return sentiment, probs[0][sentiment].item()
 
-    # Encode sentiment labels
-    label_encoder = LabelEncoder()
-    shoe_data['encoded_sentiment'] = label_encoder.fit_transform(shoe_data['sentiment'])
+    text = st.text_area("Enter your review:", "Type here...")
 
-    # Tokenization and Padding
-    tokenizer = Tokenizer(num_words=5000, oov_token='<OOV>')
-    tokenizer.fit_on_texts(shoe_data['combined_reviews'])
-    
-    # Memuat model yang telah dilatih
-    model = load_trained_model()
-
-    if model is None:
-        st.error("Trained model not found. Please ensure 'sentiment_model.h5' is available.")
-        return
-
-    # Dropdown untuk memilih merk
-    merk_options = sorted(shoe_data['merk'].unique())
-    selected_merk = st.selectbox("Select a Merk", options=merk_options)
-    
-    # Dropdown untuk memilih title berdasarkan merk yang dipilih
-    title_options = shoe_data[shoe_data['merk'] == selected_merk]['title'].unique()
-    selected_title = st.selectbox("Select a Title", options=title_options)
-    
-    st.header("Input Review for Sentiment Analysis")
-    review_input = st.text_area("Enter your review here:")
-
-    if st.button("Analyze Sentiment"):
-        if review_input:
-            # Preprocess input review
-            sequence = tokenizer.texts_to_sequences([review_input])
-            padded_sequence = pad_sequences(sequence, padding='post', maxlen=200)
-            
-            # Predict sentiment
-            sentiment_prediction = model.predict(padded_sequence)
-            sentiment_class = sentiment_prediction.argmax(axis=-1)
-            sentiment_label = label_encoder.inverse_transform(sentiment_class)
-
-            # Mapping encoded labels to textual labels
-            sentiment_mapping = {0: 'negative', 1: 'neutral', 2: 'positive'}
-            sentiment_text = sentiment_mapping[sentiment_class[0]]
-
-            st.write(f"The sentiment of the review is: {sentiment_text}")
-        else:
-            st.error("Please enter a review for analysis.")
+    if st.button("Classify"):
+        sentiment, confidence = classify_sentiment(text)
+        sentiment_map = {0: 'Negative', 1: 'Neutral', 2: 'Positive'}
+        st.write(f"Sentiment: {sentiment_map[sentiment]} (Confidence: {confidence:.2f})")
 
 def read_data():
     st.title("Read Shoe Data")
@@ -103,7 +73,6 @@ def read_data():
         top_merks,
         x='merk',
         y='total_reviews',
-        title='Top Brands by Total Reviews',
         labels={'merk': 'Brand (Merk)', 'total_reviews': 'Total Reviews'}
     )
     fig3.update_layout(yaxis_title='Total Reviews')
