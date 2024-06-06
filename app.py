@@ -14,7 +14,7 @@ from transformers import BertTokenizer, BertForSequenceClassification
 import torch
 import os
 
-locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')  # Set locale for thousands separator
+#locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')  # Set locale for thousands separator
 
 # Memuat data sepatu
 shoe_data = pd.read_csv('data/Shoes_Data_Final.csv')
